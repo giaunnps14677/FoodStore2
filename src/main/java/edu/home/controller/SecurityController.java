@@ -6,8 +6,16 @@ import edu.home.common.entity.RegisterCustomer;
 import edu.home.entity.Customer;
 import edu.home.service.CustomerService;
 import edu.home.service.MailerService;
+import edu.home.service.UserService2;
+
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +28,8 @@ public class SecurityController {
 
     @Autowired
     private BCryptPasswordEncoder passwordEncoder;
+    @Autowired
+    private UserService2 userService;
     @Autowired
     private CustomerService customerService;
     @Autowired
@@ -90,4 +100,36 @@ public class SecurityController {
         }
         return "security/changePassword";
     }
+    
+    @RequestMapping("login2/success") public String
+	  loginOauth2(OAuth2AuthenticationToken oauth2) { 
+		  String username; 
+		  String email=oauth2.getPrincipal().getAttribute("email"); 	
+		  String password=Long.toHexString(System.currentTimeMillis()); 
+		  Object account ;
+		  String[] roles = null;
+		  account= userService.getByEmail(email);
+		  if(account == null) {
+			  account = customerService.getByEmail(email);
+			  if(account == null) {
+				  Customer customer = new Customer();
+				  customer.setUsername(email);
+				  customer.setEmail(email);
+				  customer.setPassword(password);
+				  customer.setStatus(1L);
+				  account = customerService.create(customer);
+			  }
+			  username = ((Customer)account).getUsername();
+			  roles = new String[]{"CUS"};
+
+		  }else {
+			  username = ((edu.home.entity.User)account).getUsername();
+			  roles = userService.getAllPermission(((edu.home.entity.User) account).getUsername());
+		  }
+
+		  UserDetails user =
+		  User.withUsername(username).password(password).roles(roles).build();
+		  Authentication authentication = new  UsernamePasswordAuthenticationToken(user,null, user.getAuthorities());
+		  SecurityContextHolder.getContext().setAuthentication(authentication);
+		  return "forward:/security/login/success"; }
 }
